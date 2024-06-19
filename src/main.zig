@@ -1,3 +1,5 @@
+//! This module represents the entry point for the `trunk` CLI application.
+
 const std = @import("std");
 const args = @import("args");
 const trunk = @import("trunk");
