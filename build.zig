@@ -29,16 +29,19 @@ pub fn build(b: *std.Build) void {
     var all_args = std.process.args();
     var zig_args: ?*std.Build.Dependency = null;
     while (all_args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "cli")) {
+        if (std.mem.eql(u8, arg, "cli") or
+            std.mem.eql(u8, arg, "run") or
+            std.mem.eql(u8, arg, "test"))
+        {
             zig_args = b.lazyDependency("zig-args", .{});
         }
     }
     if (zig_args) |dep| {
         exe.root_module.addImport("args", dep.module("args"));
-    } else {
-        return;
     }
     const exe_install = b.addInstallArtifact(exe, .{});
+    const cli_step = b.step("cli", "Build the `trunk` CLI application");
+    cli_step.dependOn(&exe_install.step);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -70,9 +73,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
-
-    const cli_step = b.step("cli", "Build the `trunk` CLI application");
-    cli_step.dependOn(&exe_install.step);
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_mod_unit_tests.step);
