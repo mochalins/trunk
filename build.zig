@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    lib.root_module.addImport("trunk", mod);
+    exe.root_module.addImport("trunk", mod);
     var all_args = std.process.args();
     var zig_args: ?*std.Build.Dependency = null;
     while (all_args.next()) |arg| {

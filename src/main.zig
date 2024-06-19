@@ -1,7 +1,6 @@
 const std = @import("std");
 const args = @import("args");
-
-const Repository = @import("Repository.zig");
+const trunk = @import("trunk");
 
 const command = @import("command.zig");
 
@@ -25,11 +24,13 @@ pub fn main() !u8 {
                 if (options.positionals.len > 1) {
                     return 1;
                 } else if (options.positionals.len == 1) {
-                    var repo =
-                        try Repository.create(options.positionals[0], null);
+                    var repo = try trunk.Repository.create(
+                        options.positionals[0],
+                        null,
+                    );
                     repo.deinit();
                 } else {
-                    var repo = try Repository.create(".", null);
+                    var repo = try trunk.Repository.create(".", null);
                     repo.deinit();
                 }
             },
