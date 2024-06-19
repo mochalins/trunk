@@ -84,6 +84,49 @@ pub fn create(
     return result;
 }
 
+/// Traverse upwards from the provided path to detect the closest `.git`
+/// directory from which to recognize a `Repository`.
+pub fn find(path: ?[]const u8) !Repository {
+    var cwd: std.fs.Dir = if (path) |p|
+        try std.fs.cwd().openDir(p, .{})
+    else
+        try std.fs.cwd().openDir(".", .{});
+    errdefer cwd.close();
+
+    var result: Repository = .{
+        .worktree = undefined,
+        .git = undefined,
+        .config = undefined,
+    };
+
+    while (true) {
+        const git_dir: ?std.fs.Dir = cwd.openDir(".git", .{}) catch null;
+        if (git_dir) |dir| {
+            result.worktree = cwd;
+            result.git = dir;
+            break;
+        } else {
+            const new_cwd = try cwd.openDir("..", .{});
+            if (new_cwd.fd == cwd.fd) {
+                return error.NoRepositoryFound;
+            }
+            cwd.close();
+            cwd = new_cwd;
+        }
+    }
+    errdefer {
+        result.worktree.close();
+        result.git.close();
+    }
+
+    const config_file = try result.git.openFile("config", .{});
+    defer config_file.close();
+
+    result.config = try Configuration.read(config_file.reader().any());
+
+    return result;
+}
+
 pub fn deinit(self: *Repository) void {
     self.worktree.close();
     self.git.close();

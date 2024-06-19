@@ -24,12 +24,20 @@ pub const default: Configuration = .{
     },
 };
 
+pub fn parse(str: []const u8) !Configuration {
+    // TODO
+    _ = str;
+    return .{};
+}
+
 pub fn read(reader: std.io.AnyReader) !Configuration {
     // TODO
     _ = reader;
     return .{};
 }
 
+/// Write the configuration as an INI to the provided writer. Return the number
+/// of bytes written if successful.
 pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
     var written_bytes: usize = 0;
     inline for (@typeInfo(Configuration).Struct.fields) |section| {
@@ -50,10 +58,10 @@ pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
                                         "\t{s} = {?}\n",
                                         .{ field.name, field_value },
                                     );
-                                    written_bytes += std.fmt.count(
+                                    written_bytes += @intCast(std.fmt.count(
                                         "\t{s} = {?}\n",
                                         .{ field.name, field_value },
-                                    );
+                                    ));
                                 }
                             }
                         }
@@ -74,10 +82,10 @@ pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
                             "\t{s} = {?}\n",
                             .{ field.name, field_value },
                         );
-                        written_bytes += std.fmt.count(
+                        written_bytes += @intCast(std.fmt.count(
                             "\t{s} = {?}\n",
                             .{ field.name, field_value },
-                        );
+                        ));
                     }
                 }
             },

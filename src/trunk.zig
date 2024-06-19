@@ -4,6 +4,7 @@ const std = @import("std");
 
 pub const Repository = @import("Repository.zig");
 pub const Configuration = @import("Configuration.zig");
+pub const Object = @import("Object.zig");
 
 test {
     std.testing.refAllDeclsRecursive(@This());
