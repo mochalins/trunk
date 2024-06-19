@@ -23,9 +23,12 @@ pub fn main() !u8 {
                 if (options.positionals.len > 1) {
                     return 1;
                 } else if (options.positionals.len == 1) {
-                    _ = try Repository.create(options.positionals[0], null);
+                    var repo =
+                        try Repository.create(options.positionals[0], null);
+                    repo.deinit();
                 } else {
-                    _ = try Repository.create(".", null);
+                    var repo = try Repository.create(".", null);
+                    repo.deinit();
                 }
             },
         }

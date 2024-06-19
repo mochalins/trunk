@@ -79,7 +79,7 @@ pub fn create(worktree: []const u8, git: ?[]const u8) !Repository {
     return result;
 }
 
-pub fn deinit(self: Repository) void {
+pub fn deinit(self: *Repository) void {
     self.worktree.close();
     self.git.close();
 }
