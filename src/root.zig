@@ -1,10 +1,9 @@
 const std = @import("std");
-const testing = std.testing;
 
-export fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
+const Repository = @import("Repository.zig");
+const Configuration = @import("Configuration.zig");
 
-test "basic add functionality" {
-    try testing.expect(add(3, 7) == 10);
+test {
+    std.testing.refAllDecls(Repository);
+    std.testing.refAllDecls(Configuration);
 }

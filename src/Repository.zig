@@ -65,7 +65,8 @@ pub fn create(worktree: []const u8, git: ?[]const u8) !Repository {
     const description = try result.git.createFile("description", .{});
     defer description.close();
     try description.writeAll(
-        "Unnamed repository; edit this file 'description' to name the repository.\n",
+        "Unnamed repository; " ++
+            "edit this file 'description' to name the repository.\n",
     );
 
     const HEAD = try result.git.createFile("HEAD", .{});

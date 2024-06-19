@@ -25,7 +25,10 @@ pub fn parseFile(f: std.fs.File) !Configuration {
 pub fn write(self: Configuration, buf: []u8) ![]u8 {
     const core = try std.fmt.bufPrint(
         buf,
-        "[core]\nrepositoryformatversion = {d}\nfilemode = {}\nbare = {}\n",
+        "[core]\n" ++
+            "repositoryformatversion = {d}\n" ++
+            "filemode = {}\n" ++
+            "bare = {}\n",
         .{
             self.core.repository_format_version,
             self.core.filemode,
@@ -42,7 +45,10 @@ test "Configuration.write" {
 
     try std.testing.expectEqualSlices(
         u8,
-        "[core]\nrepositoryformatversion = 0\nfilemode = false\nbare = false\n",
+        "[core]\n" ++
+            "repositoryformatversion = 0\n" ++
+            "filemode = false\n" ++
+            "bare = false\n",
         result,
     );
 }
@@ -50,7 +56,10 @@ test "Configuration.write" {
 pub fn writeFile(self: Configuration, file: std.fs.File) !void {
     try std.fmt.format(
         file.writer(),
-        "[core]\nrepositoryformatversion = {d}\nfilemode = {}\nbare = {}\n",
+        "[core]\n" ++
+            "repositoryformatversion = {d}\n" ++
+            "filemode = {}\n" ++
+            "bare = {}\n",
         .{
             self.core.repository_format_version,
             self.core.filemode,
