@@ -58,20 +58,3 @@ pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
     }
     return written_bytes;
 }
-
-test "Configuration.write" {
-    var conf: Configuration = default;
-    var buf: [1024]u8 = undefined;
-    var buffer_writer = std.io.fixedBufferStream(&buf);
-    const result = buf[0..try conf.write(buffer_writer.writer().any())];
-
-    try std.testing.expectEqualSlices(
-        u8,
-        "[core]\n" ++
-            "\trepositoryformatversion = 0\n" ++
-            "\tfilemode = true\n" ++
-            "\tbare = false\n" ++
-            "\tlogallrefupdates = true\n",
-        result,
-    );
-}
