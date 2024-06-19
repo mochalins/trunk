@@ -1,69 +1,77 @@
 const Configuration = @This();
 
 const std = @import("std");
+const builtin = @import("builtin");
 
-core: struct {
-    repository_format_version: u1 = 0,
-    filemode: bool = false,
-    bare: bool = false,
-} = .{},
+core: ?struct {
+    repositoryformatversion: ?u1 = null,
+    filemode: ?bool = null,
+    bare: ?bool = null,
+    logallrefupdates: ?bool = null,
+    ignorecase: ?bool = null,
+    precomposeunicode: ?bool = null,
+} = null,
 
-pub fn init() Configuration {
+pub const default: Configuration = .{
+    .core = .{
+        .repositoryformatversion = 0,
+        .filemode = true,
+        .bare = false,
+        .logallrefupdates = true,
+        .ignorecase = if (builtin.os.tag.isDarwin() or
+            builtin.os.tag == .windows) true else null,
+        .precomposeunicode = if (builtin.os.tag.isDarwin()) true else null,
+    },
+};
+
+pub fn read(reader: std.io.AnyReader) !Configuration {
+    // TODO
+    _ = reader;
     return .{};
 }
 
-pub fn parse(str: []const u8) !Configuration {
-    _ = str;
-    return .{};
-}
+pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
+    var written_bytes: usize = 0;
+    inline for (@typeInfo(Configuration).Struct.fields) |section| {
+        const section_value = @field(self, section.name);
+        if (section_value != null) {
+            try writer.print("[{s}]\n", .{section.name});
+            written_bytes += section.name.len + 3;
 
-pub fn parseFile(f: std.fs.File) !Configuration {
-    _ = f;
-    return .{};
-}
+            const _section_type = @typeInfo(section.type);
+            const section_type = @typeInfo(_section_type.Optional.child);
 
-pub fn write(self: Configuration, buf: []u8) ![]u8 {
-    const core = try std.fmt.bufPrint(
-        buf,
-        "[core]\n" ++
-            "repositoryformatversion = {d}\n" ++
-            "filemode = {}\n" ++
-            "bare = {}\n",
-        .{
-            self.core.repository_format_version,
-            self.core.filemode,
-            self.core.bare,
-        },
-    );
-    return core;
+            inline for (section_type.Struct.fields) |field| {
+                const field_value = @field(section_value.?, field.name);
+                if (field_value != null) {
+                    try writer.print(
+                        "\t{s} = {?}\n",
+                        .{ field.name, field_value },
+                    );
+                    written_bytes += std.fmt.count(
+                        "\t{s} = {?}\n",
+                        .{ field.name, field_value },
+                    );
+                }
+            }
+        }
+    }
+    return written_bytes;
 }
 
 test "Configuration.write" {
-    var conf: Configuration = Configuration.init();
+    var conf: Configuration = default;
     var buf: [1024]u8 = undefined;
-    const result = try conf.write(&buf);
+    var buffer_writer = std.io.fixedBufferStream(&buf);
+    const result = buf[0..try conf.write(buffer_writer.writer().any())];
 
     try std.testing.expectEqualSlices(
         u8,
         "[core]\n" ++
-            "repositoryformatversion = 0\n" ++
-            "filemode = false\n" ++
-            "bare = false\n",
+            "\trepositoryformatversion = 0\n" ++
+            "\tfilemode = true\n" ++
+            "\tbare = false\n" ++
+            "\tlogallrefupdates = true\n",
         result,
-    );
-}
-
-pub fn writeFile(self: Configuration, file: std.fs.File) !void {
-    try std.fmt.format(
-        file.writer(),
-        "[core]\n" ++
-            "repositoryformatversion = {d}\n" ++
-            "filemode = {}\n" ++
-            "bare = {}\n",
-        .{
-            self.core.repository_format_version,
-            self.core.filemode,
-            self.core.bare,
-        },
     );
 }

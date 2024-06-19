@@ -29,10 +29,15 @@ pub fn main() !u8 {
                     var repo = try trunk.Repository.create(
                         options.positionals[0],
                         null,
+                        trunk.Configuration.default,
                     );
                     repo.deinit();
                 } else {
-                    var repo = try trunk.Repository.create(".", null);
+                    var repo = try trunk.Repository.create(
+                        ".",
+                        null,
+                        trunk.Configuration.default,
+                    );
                     repo.deinit();
                 }
             },

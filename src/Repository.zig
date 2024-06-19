@@ -27,17 +27,21 @@ pub fn init(worktree: []const u8, git: ?[]const u8) !Repository {
     const config_file = try result.git.openFile("config", .{});
     defer config_file.close();
 
-    result.config = try Configuration.parseFile(config_file);
+    result.config = try Configuration.read(config_file.reader().any());
     return result;
 }
 
-pub fn create(worktree: []const u8, git: ?[]const u8) !Repository {
+pub fn create(
+    worktree: []const u8,
+    git: ?[]const u8,
+    config: Configuration,
+) !Repository {
     var result: Repository = .{
         .worktree = try std.fs.cwd().makeOpenPath(worktree, .{
             .iterate = true,
         }),
         .git = undefined,
-        .config = Configuration.init(),
+        .config = config,
     };
     errdefer result.worktree.close();
 
@@ -75,7 +79,7 @@ pub fn create(worktree: []const u8, git: ?[]const u8) !Repository {
 
     const config_file = try result.git.createFile("config", .{});
     defer config_file.close();
-    try result.config.writeFile(config_file);
+    _ = try result.config.write(config_file.writer().any());
 
     return result;
 }
