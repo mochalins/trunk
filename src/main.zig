@@ -48,22 +48,17 @@ pub fn main() !u8 {
                     std.log.err("Requires 2 arguments", .{});
                     return 1;
                 }
-                var object_kind: ?trunk.Object.Kind = undefined;
-                const kinds_type = @typeInfo(trunk.Object.Kind).Enum;
-                inline for (kinds_type.fields) |field| {
-                    if (std.mem.eql(u8, field.name, options.positionals[0])) {
-                        object_kind = @enumFromInt(field.value);
-                    }
-                }
 
-                if (object_kind == null) {
+                const object_kind = trunk.Object.Kind.parse(
+                    options.positionals[0],
+                ) catch {
                     // TODO
                     std.log.err(
                         "Unknown object kind {s}",
                         .{options.positionals[0]},
                     );
                     return 1;
-                }
+                };
 
                 // TODO: Handle short hash, tag, etc...
                 const hash = options.positionals[1];
@@ -73,10 +68,7 @@ pub fn main() !u8 {
                     return 1;
                 }
 
-                try command.@"cat-file".execute(
-                    object_kind.?,
-                    @ptrCast(hash.ptr),
-                );
+                try command.@"cat-file".execute(object_kind, @ptrCast(hash));
             },
             .@"hash-object" => |ho| {
                 if (options.positionals.len != 1) {

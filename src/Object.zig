@@ -10,15 +10,10 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Object {
     var result: Object = undefined;
     var current_str = str;
 
-    const kind_type = @typeInfo(Kind).Enum;
     var kind: Kind = undefined;
     for (str[0..7], 0..) |c, i| {
         if (c == ' ') {
-            inline for (kind_type.fields) |field| {
-                if (std.mem.eql(u8, field.name, str[0..i])) {
-                    kind = @enumFromInt(field.value);
-                }
-            }
+            kind = try Kind.parse(str[0..i]);
             current_str = str[i + 1 ..];
             break;
         }
@@ -89,6 +84,20 @@ pub const Kind = enum {
     commit,
     tag,
     tree,
+
+    pub fn parse(tag: []const u8) !Kind {
+        const kind_type = @typeInfo(Kind).Enum;
+        var parse_kind: ?Kind = null;
+        inline for (kind_type.fields) |field| {
+            if (std.mem.eql(u8, field.name, tag)) {
+                parse_kind = @enumFromInt(field.value);
+            }
+        }
+        if (parse_kind == null) {
+            return error.InvalidKind;
+        }
+        return parse_kind.?;
+    }
 };
 
 pub const Payload = union(Kind) {
