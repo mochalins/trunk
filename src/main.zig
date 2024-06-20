@@ -1,13 +1,25 @@
 //! This module represents the entry point for the `trunk` CLI application.
 
+const builtin = @import("builtin");
 const std = @import("std");
 const args = @import("args");
 const trunk = @import("trunk");
+
+const newline = if (builtin.os.tag == .windows) "\r\n" else "\n";
 
 const Options = struct {};
 const Commands = union(enum) {
     init: void,
     @"cat-file": void,
+    @"hash-object": struct {
+        type: trunk.Object.Kind = .blob,
+        write: bool = false,
+
+        pub const shorthands = .{
+            .t = "type",
+            .w = "write",
+        };
+    },
 };
 
 pub fn main() !u8 {
@@ -69,6 +81,7 @@ pub fn main() !u8 {
                 var repository = try trunk.Repository.find(null);
                 defer repository.deinit();
 
+                // TODO: Handle short hash, tag, etc...
                 const hash = options.positionals[1];
                 if (hash.len < 3) {
                     // TODO
@@ -103,6 +116,52 @@ pub fn main() !u8 {
 
                 switch (object.payload) {
                     inline else => |p| _ = try p.write(stdout.any()),
+                }
+            },
+            .@"hash-object" => |command| {
+                if (options.positionals.len != 1) {
+                    // TODO
+                    std.log.err("Requires 1 argument", .{});
+                    return 1;
+                }
+
+                var f = try std.fs.cwd().openFile(options.positionals[0], .{});
+                var object: trunk.Object = undefined;
+
+                var arena = std.heap.ArenaAllocator.init(
+                    std.heap.page_allocator,
+                );
+                defer arena.deinit();
+                const allocator = arena.allocator();
+
+                switch (command.type) {
+                    .blob => {
+                        object.payload = .{ .blob = .{
+                            .allocator = allocator,
+                            .data = try f.readToEndAlloc(
+                                allocator,
+                                std.math.maxInt(usize),
+                            ),
+                        } };
+                        object.size = object.payload.blob.data.len;
+                    },
+                    else => return error.Unimplemented,
+                }
+
+                if (command.write) {
+                    var repository = try trunk.Repository.find(null);
+                    defer repository.deinit();
+                    // TODO
+                    return error.Unimplemented;
+                } else {
+                    var contents = std.ArrayList(u8).init(allocator);
+                    _ = try object.write(contents.writer().any());
+                    var hash: [std.crypto.hash.Sha1.digest_length]u8 =
+                        undefined;
+                    std.crypto.hash.Sha1.hash(contents.items, &hash, .{});
+                    const formatter = std.fmt.fmtSliceHexLower(&hash);
+                    try formatter.format("{}", .{}, stdout);
+                    try stdout.print(newline, .{});
                 }
             },
         }

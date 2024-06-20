@@ -61,19 +61,21 @@ pub fn write(self: Object, writer: std.io.AnyWriter) !usize {
     var bytes_written: usize = 0;
 
     const object_type_str = @tagName(self.payload);
-    writer.writeAll(object_type_str);
+    try writer.writeAll(object_type_str);
     bytes_written += object_type_str.len;
 
-    writer.print(" {d}\x00", .{
-        // TODO
-    });
-    bytes_written += @intCast(std.fmt.count(" {d}\x00", .{
-        // TODO
-    }));
+    try writer.print(" {d}\x00", .{self.size});
+    bytes_written += @intCast(std.fmt.count(" {d}\x00", .{self.size}));
 
     switch (self.payload) {
-        inline else => |p| bytes_written += try p.write(writer),
+        inline else => |p| {
+            const payload_bytes = try p.write(writer);
+            std.debug.assert(payload_bytes == self.size);
+            bytes_written += payload_bytes;
+        },
     }
+
+    return bytes_written;
 }
 
 pub fn deinit(self: Object) void {
