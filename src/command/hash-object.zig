@@ -1,6 +1,7 @@
 const std = @import("std");
 const trunk = @import("trunk");
 
+const hash = trunk.hash;
 const util = @import("../util.zig");
 
 pub fn execute(
@@ -34,19 +35,14 @@ pub fn execute(
 
     var contents = std.ArrayList(u8).init(allocator);
     _ = try object.write(contents.writer().any());
-    const hash_length = std.crypto.hash.Sha1.digest_length;
-    var hash: [hash_length]u8 = undefined;
-    std.crypto.hash.Sha1.hash(contents.items, &hash, .{});
-    const formatter = std.fmt.fmtSliceHexLower(&hash);
+    const object_hash = hash.Sha1.hash(contents.items);
 
     if (save) {
         var repository = try trunk.Repository.find(null);
         defer repository.deinit();
 
-        var hash_string: [hash_length * 2]u8 = undefined;
-        var hash_stream = std.io.fixedBufferStream(&hash_string);
-        const hs_writer = hash_stream.writer();
-        try formatter.format("{}", .{}, hs_writer);
+        var hash_string: [hash.Sha1.hex_length]u8 = undefined;
+        _ = try object_hash.formatHexBuf(&hash_string);
 
         var dir_buf: [10]u8 =
             .{ 'o', 'b', 'j', 'e', 'c', 't', 's', '/', 0, 0 };
@@ -66,7 +62,7 @@ pub fn execute(
         );
     } else {
         const stdout = std.io.getStdOut().writer();
-        try formatter.format("{}", .{}, stdout);
+        try object_hash.formatHexWriter(stdout);
         try stdout.print(util.newline, .{});
     }
 }

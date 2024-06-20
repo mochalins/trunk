@@ -40,14 +40,12 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Object {
     }
 
     switch (kind) {
-        .blob => {
-            result.payload = .{ .blob = .{
-                .allocator = allocator,
-                .data = try allocator.alloc(u8, result.size),
-            } };
-            @memcpy(result.payload.blob.data, current_str);
+        .blob => result.payload = .{
+            .blob = try Blob.parse(allocator, current_str),
         },
-        .commit => return error.Unimplemented,
+        .commit => result.payload = .{
+            .commit = try Commit.parse(allocator, current_str),
+        },
         .tag => return error.Unimplemented,
         .tree => return error.Unimplemented,
     }
@@ -89,18 +87,14 @@ pub const Kind = enum {
     tag,
     tree,
 
-    pub fn parse(tag: []const u8) !Kind {
-        const kind_type = @typeInfo(Kind).Enum;
-        var parse_kind: ?Kind = null;
+    pub fn parse(tag: []const u8) !@This() {
+        const kind_type = @typeInfo(@This()).Enum;
         inline for (kind_type.fields) |field| {
             if (std.mem.eql(u8, field.name, tag)) {
-                parse_kind = @enumFromInt(field.value);
+                return @enumFromInt(field.value);
             }
         }
-        if (parse_kind == null) {
-            return error.InvalidKind;
-        }
-        return parse_kind.?;
+        return error.InvalidObjectKind;
     }
 };
 
@@ -110,68 +104,7 @@ pub const Payload = union(Kind) {
     tag: Tag,
     tree: Tree,
 };
-
-pub const Blob = struct {
-    allocator: std.mem.Allocator,
-    data: []u8,
-
-    pub fn init(allocator: std.mem.Allocator) Blob {
-        return .{
-            .allocator = allocator,
-            .data = &.{},
-        };
-    }
-
-    pub fn deinit(self: Blob) void {
-        self.allocator.free(self.data);
-    }
-
-    /// Write to provided writer, returning number of bytes written if
-    /// successful.
-    pub fn write(self: Blob, writer: std.io.AnyWriter) !usize {
-        try writer.writeAll(self.data);
-        return self.data.len;
-    }
-};
-
-pub const Commit = struct {
-    pub fn deinit(self: Commit) void {
-        _ = self;
-    }
-
-    /// Write to provided writer, returning number of bytes written if
-    /// successful.
-    pub fn write(self: Commit, writer: std.io.AnyWriter) !usize {
-        _ = self;
-        _ = writer;
-        return 0;
-    }
-};
-
-pub const Tag = struct {
-    pub fn deinit(self: Tag) void {
-        _ = self;
-    }
-
-    /// Write to provided writer, returning number of bytes written if
-    /// successful.
-    pub fn write(self: Tag, writer: std.io.AnyWriter) !usize {
-        _ = self;
-        _ = writer;
-        return 0;
-    }
-};
-
-pub const Tree = struct {
-    pub fn deinit(self: Tree) void {
-        _ = self;
-    }
-
-    /// Write to provided writer, returning number of bytes written if
-    /// successful.
-    pub fn write(self: Tree, writer: std.io.AnyWriter) !usize {
-        _ = self;
-        _ = writer;
-        return 0;
-    }
-};
+pub const Blob = @import("Object/Blob.zig");
+pub const Commit = @import("Object/Commit.zig");
+pub const Tag = @import("Object/Tag.zig");
+pub const Tree = @import("Object/Tree.zig");

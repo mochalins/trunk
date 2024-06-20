@@ -6,6 +6,8 @@ pub const Repository = @import("Repository.zig");
 pub const Configuration = @import("Configuration.zig");
 pub const Object = @import("Object.zig");
 
+pub const hash = @import("hash.zig");
+
 test {
     std.testing.refAllDeclsRecursive(@This());
 }
