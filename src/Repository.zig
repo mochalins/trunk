@@ -37,18 +37,11 @@ pub fn create(
     config: Configuration,
 ) !Repository {
     var result: Repository = .{
-        .worktree = try std.fs.cwd().makeOpenPath(worktree, .{
-            .iterate = true,
-        }),
+        .worktree = try std.fs.cwd().makeOpenPath(worktree, .{}),
         .git = undefined,
         .config = config,
     };
     errdefer result.worktree.close();
-
-    var worktree_it = result.worktree.iterate();
-    if (try worktree_it.next()) |_| {
-        return error.DirectoryNotEmpty;
-    }
 
     if (git) |path| {
         result.git = try std.fs.cwd().makeOpenPath(path, .{});
