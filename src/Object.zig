@@ -11,21 +11,25 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Object {
     var current_str = str;
 
     var kind: Kind = undefined;
-    for (str[0..7], 0..) |c, i| {
+    for (str, 0..) |c, i| {
         if (c == ' ') {
             kind = try Kind.parse(str[0..i]);
             current_str = str[i + 1 ..];
             break;
+        } else if (i >= 7) {
+            return error.InvalidHeader;
         }
     } else {
         return error.InvalidHeader;
     }
 
-    for (current_str[0..20], 0..) |c, i| {
+    for (current_str, 0..) |c, i| {
         if (c == '\x00') {
             result.size = try std.fmt.parseInt(usize, current_str[0..i], 10);
             current_str = current_str[i + 1 ..];
             break;
+        } else if (i >= 20) {
+            return error.InvalidHeader;
         }
     } else {
         return error.InvalidHeader;
