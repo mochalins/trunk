@@ -43,21 +43,30 @@ pub fn create(
     };
     errdefer result.worktree.close();
 
-    if (git) |path| {
-        result.git = try std.fs.cwd().makeOpenPath(path, .{});
-    } else {
-        try result.worktree.makeDir(".git");
-        result.git = try result.worktree.openDir(".git", .{});
-    }
+    result.git = try std.fs.cwd().makeOpenPath(
+        if (git) |path| path else ".git",
+        .{},
+    );
     errdefer result.git.close();
 
-    try result.git.makeDir("branches");
-    try result.git.makeDir("objects");
-    try result.git.makeDir("refs");
-    var refs = try result.git.openDir("refs", .{});
+    result.git.makeDir("branches") catch |e| switch (e) {
+        error.PathAlreadyExists => {},
+        else => return e,
+    };
+    result.git.makeDir("objects") catch |e| switch (e) {
+        error.PathAlreadyExists => {},
+        else => return e,
+    };
+    var refs = try result.git.makeOpenPath("refs", .{});
     defer refs.close();
-    try refs.makeDir("tags");
-    try refs.makeDir("heads");
+    refs.makeDir("tags") catch |e| switch (e) {
+        error.PathAlreadyExists => {},
+        else => return e,
+    };
+    refs.makeDir("heads") catch |e| switch (e) {
+        error.PathAlreadyExists => {},
+        else => return e,
+    };
 
     const description = try result.git.createFile("description", .{});
     defer description.close();
