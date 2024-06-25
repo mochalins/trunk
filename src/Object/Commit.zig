@@ -7,15 +7,78 @@ const hash = @import("../hash.zig");
 allocator: std.mem.Allocator,
 tree: hash.Sha1,
 parents: []hash.Sha1,
-author: []u8,
-committer: []u8,
+author: ?Signature,
+committer: ?Signature,
 gpgsig: []u8,
 message: []u8,
 
+pub const Signature = struct {
+    name: []u8,
+    email: ?[]u8,
+    timestamp: i64,
+    timezone: std.math.IntFittingRange(-1000, 1000),
+
+    pub fn parse(allocator: std.mem.Allocator, str: []const u8) !@This() {
+        var it = std.mem.splitBackwardsScalar(u8, str, ' ');
+        var result: @This() = .{
+            .name = &.{},
+            .email = null,
+            .timestamp = 0,
+            .timezone = 0,
+        };
+
+        result.timezone = try std.fmt.parseInt(
+            @TypeOf(result.timezone),
+            it.first(),
+            10,
+        );
+        result.timestamp = try std.fmt.parseInt(i64, it.next().?, 10);
+
+        var name_email = it.rest();
+        if (name_email[name_email.len - 1] != '>') {
+            return error.InvalidSignature;
+        }
+        name_email.len -= 1;
+
+        var name_email_it = std.mem.splitBackwardsScalar(u8, name_email, ' ');
+        const email = name_email_it.first();
+        if (email.len <= 1 or email[0] != '<') {
+            return error.InvalidSignatureEmail;
+        }
+        const name = name_email_it.rest();
+        if (name.len == 0) {
+            return error.InvalidSignatureName;
+        }
+
+        result.name = try allocator.alloc(u8, name.len);
+        errdefer allocator.free(result.name);
+        @memcpy(result.name, name);
+
+        if (email.len > 0) {
+            result.email = try allocator.alloc(u8, email.len - 1);
+            errdefer result.email.?;
+
+            @memcpy(result.email.?, email[1..]);
+        }
+
+        return result;
+    }
+};
+
 pub fn deinit(self: Commit) void {
     if (self.parents.len > 0) self.allocator.free(self.parents);
-    if (self.author.len > 0) self.allocator.free(self.author);
-    if (self.committer.len > 0) self.allocator.free(self.committer);
+    if (self.author) |author| {
+        self.allocator.free(author.name);
+        if (author.email) |email| {
+            self.allocator.free(email);
+        }
+    }
+    if (self.committer) |committer| {
+        self.allocator.free(committer.name);
+        if (committer.email) |email| {
+            self.allocator.free(email);
+        }
+    }
     if (self.gpgsig.len > 0) self.allocator.free(self.gpgsig);
     if (self.message.len > 0) self.allocator.free(self.message);
 }
@@ -25,8 +88,8 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Commit {
         .allocator = allocator,
         .tree = hash.Sha1.zero,
         .parents = &.{},
-        .author = &.{},
-        .committer = &.{},
+        .author = null,
+        .committer = null,
         .gpgsig = &.{},
         .message = &.{},
     };
@@ -140,23 +203,31 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Commit {
                     try parents.append(try hash.Sha1.parseHex(value));
                 },
                 .author => {
-                    if (result.author.len > 0) {
+                    if (result.author) |_| {
                         // Ignore multiple authors rather than throwing an
                         // error to support some tools that erroneously emit
                         // multiple authors.
                         continue;
                     }
-                    result.author = try allocator.alloc(u8, value.len);
-                    errdefer allocator.free(result.author);
-                    @memcpy(result.author, value);
+                    result.author = try Signature.parse(allocator, value);
+                    errdefer {
+                        allocator.free(result.author.?.name);
+                        if (result.author.?.email) |*email| {
+                            allocator.free(email);
+                        }
+                    }
                 },
                 .committer => {
-                    if (result.committer.len > 0) {
+                    if (result.committer) |_| {
                         return error.InvalidMultipleCommitters;
                     }
-                    result.committer = try allocator.alloc(u8, value.len);
-                    errdefer allocator.free(result.committer);
-                    @memcpy(result.committer, value);
+                    result.committer = try Signature.parse(allocator, value);
+                    errdefer {
+                        allocator.free(result.committer.?.name);
+                        if (result.committer.?.email) |*email| {
+                            allocator.free(email);
+                        }
+                    }
                 },
                 .gpgsig => {
                     // First line containing `gpgsig` key is just the start of
@@ -216,13 +287,50 @@ pub fn write(self: Commit, writer: std.io.AnyWriter) !usize {
         try writer.writeAll("\n");
         write_size += 1;
     }
-    if (self.author.len > 0) {
-        try writer.print("author {s}\n", .{self.author});
-        write_size += 8 + self.author.len;
+    if (self.author) |author| {
+        try writer.print("author {s} ", .{author.name});
+        write_size += 8 + author.name.len;
+        try writer.print("<{s}> ", .{author.email orelse ""});
+        write_size += 3 + if (author.email) |email| email.len else 0;
+        try writer.print("{} ", .{author.timestamp});
+        write_size += @intCast(std.fmt.count("{} ", .{author.timestamp}));
+        // TODO: Change to use `writer.print` formatting once `fmt` is fixed.
+        const abs_timezone = @abs(author.timezone);
+        const leading_sign: u8 = if (author.timezone >= 0) '+' else '-';
+        const leading_zeros: u3 = if (abs_timezone > 999)
+            0
+        else if (abs_timezone > 99)
+            1
+        else if (abs_timezone > 9)
+            2
+        else
+            3;
+        try writer.writeByte(leading_sign);
+        try writer.writeByteNTimes('0', leading_zeros);
+        try writer.print("{}\n", .{abs_timezone});
+        write_size += 6;
     }
-    if (self.committer.len > 0) {
-        try writer.print("committer {s}\n", .{self.committer});
-        write_size += 11 + self.committer.len;
+    if (self.committer) |committer| {
+        try writer.print("committer {s} ", .{committer.name});
+        write_size += 11 + committer.name.len;
+        try writer.print("<{s}> ", .{committer.email orelse ""});
+        write_size += 3 + if (committer.email) |email| email.len else 0;
+        try writer.print("{} ", .{committer.timestamp});
+        write_size += @intCast(std.fmt.count("{} ", .{committer.timestamp}));
+        const abs_timezone = @abs(committer.timezone);
+        const leading_sign: u8 = if (committer.timezone >= 0) '+' else '-';
+        const leading_zeros: u3 = if (abs_timezone > 999)
+            0
+        else if (abs_timezone > 99)
+            1
+        else if (abs_timezone > 9)
+            2
+        else
+            0;
+        try writer.writeByte(leading_sign);
+        try writer.writeByteNTimes('0', leading_zeros);
+        try writer.print("{}\n", .{abs_timezone});
+        write_size += 6;
     }
     if (self.gpgsig.len > 0) {
         try writer.writeAll("gpgsig -----BEGIN PGP SIGNATURE-----\n \n");
@@ -302,8 +410,11 @@ test {
     const parents: [1]hash.Sha1 = .{try hash.Sha1.parseHex(
         "206941306e8a8af65b66eaaaea388a7ae24d49a0",
     )};
-    const author = "Thibault Polge <thibault@thb.lt> 1527025023 +0200";
-    const committer = "Thibault Polge <thibault@thb.lt> 1527025044 +0200";
+    const name = "Thibault Polge";
+    const email = "thibault@thb.lt";
+    const timezone = 200;
+    const author_timestamp = 1527025023;
+    const commit_timestamp = 1527025044;
     const gpgsig =
         "iQIzBAABCAAdFiEExwXquOM8bWb4Q2zVGxM2FxoLkGQFAlsEjZQACgkQGxM2FxoL" ++
         "kGQdcBAAqPP+ln4nGDd2gETXjvOpOxLzIMEw4A9gU6CzWzm+oB8mEIKyaH0UFIPh" ++
@@ -331,8 +442,36 @@ test {
         &tree.value,
         &parsed_commit.tree.value,
     );
-    try std.testing.expectEqualSlices(u8, author, parsed_commit.author);
-    try std.testing.expectEqualSlices(u8, committer, parsed_commit.committer);
+    try std.testing.expectEqualSlices(u8, name, parsed_commit.author.?.name);
+    try std.testing.expectEqualSlices(
+        u8,
+        name,
+        parsed_commit.committer.?.name,
+    );
+
+    try std.testing.expectEqualSlices(
+        u8,
+        email,
+        parsed_commit.author.?.email.?,
+    );
+    try std.testing.expectEqualSlices(
+        u8,
+        email,
+        parsed_commit.committer.?.email.?,
+    );
+
+    try std.testing.expectEqual(
+        author_timestamp,
+        parsed_commit.author.?.timestamp,
+    );
+    try std.testing.expectEqual(
+        commit_timestamp,
+        parsed_commit.committer.?.timestamp,
+    );
+
+    try std.testing.expectEqual(timezone, parsed_commit.author.?.timezone);
+    try std.testing.expectEqual(timezone, parsed_commit.committer.?.timezone);
+
     try std.testing.expectEqualSlices(u8, gpgsig, parsed_commit.gpgsig);
     try std.testing.expectEqualSlices(u8, message, parsed_commit.message);
     try std.testing.expectEqual(1, parsed_commit.parents.len);
