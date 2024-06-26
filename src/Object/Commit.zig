@@ -10,7 +10,10 @@ parents: []hash.Sha1,
 author: ?Signature,
 committer: ?Signature,
 gpgsig: []u8,
-message: []u8,
+message: struct {
+    subject: []u8,
+    body: ?[]u8,
+},
 
 pub const Signature = struct {
     name: []u8,
@@ -80,7 +83,11 @@ pub fn deinit(self: Commit) void {
         }
     }
     if (self.gpgsig.len > 0) self.allocator.free(self.gpgsig);
-    if (self.message.len > 0) self.allocator.free(self.message);
+    if (self.message.subject.len > 0)
+        self.allocator.free(self.message.subject);
+    if (self.message.body) |body| {
+        self.allocator.free(body);
+    }
 }
 
 pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Commit {
@@ -91,7 +98,10 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Commit {
         .author = null,
         .committer = null,
         .gpgsig = &.{},
-        .message = &.{},
+        .message = .{
+            .subject = &.{},
+            .body = null,
+        },
     };
 
     const CommitKey = enum {
@@ -178,9 +188,20 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Commit {
         else {
             // Start of commit message.
             if (message) |m| {
-                result.message = try allocator.alloc(u8, m.len);
-                errdefer allocator.free(result.message);
-                @memcpy(result.message, m);
+                var m_it = std.mem.splitScalar(u8, m, '\n');
+                const subject = m_it.first();
+                const body = m_it.rest();
+                if (subject.len == 0) {
+                    break;
+                }
+                result.message.subject = try allocator.alloc(u8, subject.len);
+                errdefer allocator.free(result.message.subject);
+                @memcpy(result.message.subject, subject);
+                if (body.len > 0) {
+                    result.message.body = try allocator.alloc(u8, body.len);
+                    errdefer allocator.free(result.message.body.?);
+                    @memcpy(result.message.body.?, body);
+                }
                 break;
             }
 
@@ -369,10 +390,17 @@ pub fn write(self: Commit, writer: std.io.AnyWriter) !usize {
         try writer.writeAll(" -----END PGP SIGNATURE-----\n");
         write_size += 29;
     }
-    if (self.message.len > 0) {
+
+    if (self.message.subject.len > 0) {
         try writer.writeByte('\n');
-        try writer.writeAll(self.message);
-        write_size += 1 + self.message.len;
+        try writer.writeAll(self.message.subject);
+        write_size += 1 + self.message.subject.len;
+    }
+
+    if (self.message.body) |body| {
+        try writer.writeByte('\n');
+        try writer.writeAll(body);
+        write_size += 1 + body.len;
     }
 
     return write_size;
@@ -429,7 +457,7 @@ test {
         "Q52UWybBzpaP9HEd4XnR+HuQ4k2K0ns2KgNImsNvIyFwbpMUyUWLMPimaV1DWUXo" ++
         "5SBjDB/V/W2JBFR+XKHFJeFwYhj7DD/ocsGr4ZMx/lgc8rjIBkI=" ++
         "=lgTX";
-    const message = "Create first draft";
+    const message_subject = "Create first draft";
 
     const parsed_commit = try Commit.parse(
         std.testing.allocator,
@@ -473,7 +501,11 @@ test {
     try std.testing.expectEqual(timezone, parsed_commit.committer.?.timezone);
 
     try std.testing.expectEqualSlices(u8, gpgsig, parsed_commit.gpgsig);
-    try std.testing.expectEqualSlices(u8, message, parsed_commit.message);
+    try std.testing.expectEqualSlices(
+        u8,
+        message_subject,
+        parsed_commit.message.subject,
+    );
     try std.testing.expectEqual(1, parsed_commit.parents.len);
     try std.testing.expectEqualSlices(
         u8,
