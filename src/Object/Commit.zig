@@ -112,7 +112,7 @@ pub fn parse(allocator: std.mem.Allocator, str: []const u8) !Commit {
         gpgsig,
 
         pub fn parse(tag: []const u8) !@This() {
-            const cp_type_info = @typeInfo(@This()).Enum;
+            const cp_type_info = @typeInfo(@This()).@"enum";
             inline for (cp_type_info.fields) |field| {
                 if (std.mem.eql(u8, field.name, tag)) {
                     return @enumFromInt(field.value);

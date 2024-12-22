@@ -40,10 +40,10 @@ pub fn read(reader: std.io.AnyReader) !Configuration {
 /// of bytes written if successful.
 pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
     var written_bytes: usize = 0;
-    inline for (@typeInfo(Configuration).Struct.fields) |section| {
+    inline for (@typeInfo(Configuration).@"struct".fields) |section| {
         const section_value = @field(self, section.name);
         switch (@typeInfo(section.type)) {
-            .Optional => |o| {
+            .optional => |o| {
                 switch (@typeInfo(o.child)) {
                     .Struct => |s| {
                         if (section_value) |section_val| {
@@ -71,7 +71,7 @@ pub fn write(self: Configuration, writer: std.io.AnyWriter) !usize {
                     },
                 }
             },
-            .Struct => |s| {
+            .@"struct" => |s| {
                 try writer.print("[{s}]\n", .{section.name});
                 written_bytes += section.name.len + 3;
 

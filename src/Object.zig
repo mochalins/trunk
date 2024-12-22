@@ -88,7 +88,7 @@ pub const Kind = enum {
     tree,
 
     pub fn parse(tag: []const u8) !@This() {
-        const kind_type = @typeInfo(@This()).Enum;
+        const kind_type = @typeInfo(@This()).@"enum";
         inline for (kind_type.fields) |field| {
             if (std.mem.eql(u8, field.name, tag)) {
                 return @enumFromInt(field.value);
