@@ -4,11 +4,18 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const libgit2 = b.dependency("libgit2", .{
+        .target = target,
+        .optimize = optimize,
+        .@"enable-ssh" = true, // optional ssh support via libssh2
+    });
+
     const mod = b.addModule("trunk", .{
         .root_source_file = b.path("src/trunk.zig"),
         .target = target,
         .optimize = optimize,
     });
+    mod.linkLibrary(libgit2.artifact("git2"));
 
     const lib = b.addStaticLibrary(.{
         .name = "trunk",
@@ -33,7 +40,10 @@ pub fn build(b: *std.Build) void {
             std.mem.eql(u8, arg, "run") or
             std.mem.eql(u8, arg, "test"))
         {
-            zig_args = b.lazyDependency("zig-args", .{});
+            zig_args = b.lazyDependency("zig-args", .{
+                .target = target,
+                .optimize = optimize,
+            });
         }
     }
     if (zig_args) |dep| {

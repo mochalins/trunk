@@ -8,6 +8,10 @@
             .hash = "1220411a8c46d95bbf3b6e2059854bcb3c5159d428814099df5294232b9980517e9c",
             .lazy = true,
         },
+        .libgit2 = .{
+            .url = "https://github.com/allyourcodebase/libgit2/archive/refs/tags/v1.8.1.tar.gz",
+            .hash = "1220cdeb89dc9dba18b89990d3323ba5e030238fe824aabc7b3396c14c4e27d922f4",
+        },
     },
     .paths = .{
         "build.zig",
